@@ -135,6 +135,7 @@ def init_keyboard_listener():
     events["exit_early"] = False
     events["rerecord_episode"] = False
     events["stop_recording"] = False
+    events["feedback"] = False  # feedback signal for recovery learning
 
     if is_headless():
         logging.warning(
@@ -159,10 +160,22 @@ def init_keyboard_listener():
                 print("Escape key pressed. Stopping data recording...")
                 events["stop_recording"] = True
                 events["exit_early"] = True
+            elif hasattr(key, 'char') and key.char == 'f':
+                print("F key pressed. Feedback ON")
+                events["feedback"] = True
         except Exception as e:
             print(f"Error handling key press: {e}")
 
-    listener = keyboard.Listener(on_press=on_press)
+
+    def on_release(key):
+        try:
+            if hasattr(key, 'char') and key.char == 'f':
+                print("F key released. Feedback OFF")
+                events["feedback"] = False
+        except Exception as e:
+            print(f"Error handling key release: {e}")
+
+    listener = keyboard.Listener(on_press=on_press, on_release=on_release)
     listener.start()
 
     return listener, events

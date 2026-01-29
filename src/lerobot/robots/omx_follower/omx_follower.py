@@ -17,6 +17,7 @@
 import logging
 import time
 from functools import cached_property
+from typing import Any
 
 from lerobot.cameras.utils import make_cameras_from_configs
 from lerobot.motors import Motor, MotorCalibration, MotorNormMode
@@ -25,8 +26,7 @@ from lerobot.motors.dynamixel import (
     DynamixelMotorsBus,
     OperatingMode,
 )
-from lerobot.processor import RobotAction, RobotObservation
-from lerobot.utils.decorators import check_if_already_connected, check_if_not_connected
+from lerobot.utils.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
 
 from ..robot import Robot
 from ..utils import ensure_safe_goal_position
@@ -84,7 +84,6 @@ class OmxFollower(Robot):
     def is_connected(self) -> bool:
         return self.bus.is_connected and all(cam.is_connected for cam in self.cameras.values())
 
-    @check_if_already_connected
     def connect(self, calibrate: bool = True) -> None:
         """
         For OMX robots that come pre-calibrated:
@@ -92,6 +91,8 @@ class OmxFollower(Robot):
         - This allows using pre-calibrated robots without manual calibration
         - If no calibration file exists, use factory default values (homing_offset=0, range_min=0, range_max=4095)
         """
+        if self.is_connected:
+            raise DeviceAlreadyConnectedError(f"{self} already connected")
 
         self.bus.connect()
         if not self.is_calibrated and calibrate:
@@ -164,8 +165,10 @@ class OmxFollower(Robot):
             self.bus.setup_motor(motor)
             print(f"'{motor}' motor id set to {self.bus.motors[motor].id}")
 
-    @check_if_not_connected
-    def get_observation(self) -> RobotObservation:
+    def get_observation(self) -> dict[str, Any]:
+        if not self.is_connected:
+            raise DeviceNotConnectedError(f"{self} is not connected.")
+
         # Read arm position
         start = time.perf_counter()
         obs_dict = self.bus.sync_read("Present_Position")
@@ -182,8 +185,7 @@ class OmxFollower(Robot):
 
         return obs_dict
 
-    @check_if_not_connected
-    def send_action(self, action: RobotAction) -> RobotAction:
+    def send_action(self, action: dict[str, float]) -> dict[str, float]:
         """Command arm to move to a target joint configuration.
 
         The relative action magnitude may be clipped depending on the configuration parameter
@@ -191,11 +193,13 @@ class OmxFollower(Robot):
         Thus, this function always returns the action actually sent.
 
         Args:
-            action (RobotAction): The goal positions for the motors.
+            action (dict[str, float]): The goal positions for the motors.
 
         Returns:
-            RobotAction: The action sent to the motors, potentially clipped.
+            dict[str, float]: The action sent to the motors, potentially clipped.
         """
+        if not self.is_connected:
+            raise DeviceNotConnectedError(f"{self} is not connected.")
 
         goal_pos = {key.removesuffix(".pos"): val for key, val in action.items() if key.endswith(".pos")}
 
@@ -210,8 +214,10 @@ class OmxFollower(Robot):
         self.bus.sync_write("Goal_Position", goal_pos)
         return {f"{motor}.pos": val for motor, val in goal_pos.items()}
 
-    @check_if_not_connected
     def disconnect(self):
+        if not self.is_connected:
+            raise DeviceNotConnectedError(f"{self} is not connected.")
+
         self.bus.disconnect(self.config.disable_torque_on_disconnect)
         for cam in self.cameras.values():
             cam.disconnect()

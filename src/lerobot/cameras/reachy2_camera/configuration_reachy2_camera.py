@@ -35,19 +35,18 @@ class Reachy2CameraConfig(CameraConfig):
         name="teleop",
         image_type="left",
         ip_address="192.168.0.200",  # IP address of the robot
-        port=50065,  # Port of the camera server
+        fps=15,
         width=640,
         height=480,
-        fps=30,  # Not configurable for Reachy 2 cameras
         color_mode=ColorMode.RGB,
-    )  # Left teleop camera, 640x480 @ 30FPS
+    )  # Left teleop camera, 640x480 @ 15FPS
     ```
 
     Attributes:
         name: Name of the camera device. Can be "teleop" or "depth".
         image_type: Type of image stream. For "teleop" camera, can be "left" or "right".
                     For "depth" camera, can be "rgb" or "depth". (depth is not supported yet)
-        fps: Requested frames per second for the color stream. Not configurable for Reachy 2 cameras.
+        fps: Requested frames per second for the color stream.
         width: Requested frame width in pixels for the color stream.
         height: Requested frame height in pixels for the color stream.
         color_mode: Color mode for image output (RGB or BGR). Defaults to RGB.
@@ -63,6 +62,7 @@ class Reachy2CameraConfig(CameraConfig):
     color_mode: ColorMode = ColorMode.RGB
     ip_address: str | None = "localhost"
     port: int = 50065
+    # use_depth: bool = False
 
     def __post_init__(self) -> None:
         if self.name not in ["teleop", "depth"]:

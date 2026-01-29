@@ -22,7 +22,7 @@ from collections.abc import Iterable, Iterator
 from pathlib import Path
 from pprint import pformat
 from typing import Any, Generic, TypeVar
-
+from lerobot.utils.constants import ACTION, OBS_ENV_STATE, OBS_STR, OBS_FEEDBACK
 import datasets
 import numpy as np
 import packaging.version
@@ -724,6 +724,8 @@ def dataset_to_policy_features(features: dict[str, dict]) -> dict[str, PolicyFea
             # Backward compatibility for "channel" which is an error introduced in LeRobotDataset v2.0 for ported datasets.
             if names[2] in ["channel", "channels"]:  # (h, w, c) -> (c, h, w)
                 shape = (shape[2], shape[0], shape[1])
+        elif key == OBS_FEEDBACK:
+            type = FeatureType.FEEDBACK
         elif key == OBS_ENV_STATE:
             type = FeatureType.ENV
         elif key.startswith(OBS_STR):
@@ -1172,21 +1174,12 @@ def validate_episode_buffer(episode_buffer: dict, total_episodes: int, features:
         )
 
 
-def to_parquet_with_hf_images(
-    df: pandas.DataFrame, path: Path, features: datasets.Features | None = None
-) -> None:
+def to_parquet_with_hf_images(df: pandas.DataFrame, path: Path) -> None:
     """This function correctly writes to parquet a panda DataFrame that contains images encoded by HF dataset.
     This way, it can be loaded by HF dataset and correctly formatted images are returned.
-
-    Args:
-        df: DataFrame to write to parquet.
-        path: Path to write the parquet file.
-        features: Optional HuggingFace Features schema. If provided, ensures image columns
-                  are properly typed as Image() in the parquet schema.
     """
     # TODO(qlhoest): replace this weird synthax by `df.to_parquet(path)` only
-    ds = datasets.Dataset.from_dict(df.to_dict(orient="list"), features=features)
-    ds.to_parquet(path)
+    datasets.Dataset.from_dict(df.to_dict(orient="list")).to_parquet(path)
 
 
 def item_to_torch(item: dict) -> dict:

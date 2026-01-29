@@ -100,6 +100,7 @@ class ACTConfig(PreTrainedConfig):
             "VISUAL": NormalizationMode.MEAN_STD,
             "STATE": NormalizationMode.MEAN_STD,
             "ACTION": NormalizationMode.MEAN_STD,
+            "FEEDBACK": NormalizationMode.IDENTITY,  # 追加
         }
     )
 

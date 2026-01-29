@@ -35,7 +35,7 @@ from torchvision.ops.misc import FrozenBatchNorm2d
 
 from lerobot.policies.act.configuration_act import ACTConfig
 from lerobot.policies.pretrained import PreTrainedPolicy
-from lerobot.utils.constants import ACTION, OBS_ENV_STATE, OBS_IMAGES, OBS_STATE
+from lerobot.utils.constants import ACTION, OBS_ENV_STATE, OBS_FEEDBACK, OBS_IMAGES, OBS_STATE
 
 
 class ACTPolicy(PreTrainedPolicy):
@@ -346,6 +346,8 @@ class ACT(nn.Module):
                 self.config.env_state_feature.shape[0], config.dim_model
             )
         self.encoder_latent_input_proj = nn.Linear(config.latent_dim, config.dim_model)
+        if self.config.feedback_feature:
+            self.encoder_feedback_embed = nn.Embedding(2, config.dim_model)  # 0 or 1 -> dim_model
         if self.config.image_features:
             self.encoder_img_feat_input_proj = nn.Conv2d(
                 backbone_model.fc.in_features, config.dim_model, kernel_size=1
@@ -353,6 +355,8 @@ class ACT(nn.Module):
         # Transformer encoder positional embeddings.
         n_1d_tokens = 1  # for the latent
         if self.config.robot_state_feature:
+            n_1d_tokens += 1
+        if self.config.feedback_feature:
             n_1d_tokens += 1
         if self.config.env_state_feature:
             n_1d_tokens += 1
@@ -400,6 +404,7 @@ class ACT(nn.Module):
             )
 
         batch_size = batch[OBS_IMAGES][0].shape[0] if OBS_IMAGES in batch else batch[OBS_ENV_STATE].shape[0]
+
 
         # Prepare the latent for input to the transformer encoder.
         if self.config.use_vae and ACTION in batch and self.training:
@@ -459,8 +464,25 @@ class ACT(nn.Module):
         encoder_in_tokens = [self.encoder_latent_input_proj(latent_sample)]
         encoder_in_pos_embed = list(self.encoder_1d_feature_pos_embed.weight.unsqueeze(1))
         # Robot state token.
+        # Feedback token.
+        # Robot state token.
         if self.config.robot_state_feature:
             encoder_in_tokens.append(self.encoder_robot_state_input_proj(batch[OBS_STATE]))
+        # Feedback token.
+        # Environment state token.
+        # Feedback token.
+        # Feedback token.
+        # Feedback token.
+        if self.config.feedback_feature:
+            feedback = batch[OBS_FEEDBACK]
+            # Ensure feedback is at least 1D and convert to integer index
+            # 形状を (batch_size,) に統一
+            if feedback.dim() == 0:
+                feedback = feedback.unsqueeze(0)
+            elif feedback.dim() > 1:
+                feedback = feedback.squeeze(-1)  # (batch_size, 1) -> (batch_size,)
+            feedback_idx = feedback.long()  # Convert to integer (0 or 1)
+            encoder_in_tokens.append(self.encoder_feedback_embed(feedback_idx))
         # Environment state token.
         if self.config.env_state_feature:
             encoder_in_tokens.append(self.encoder_env_state_input_proj(batch[OBS_ENV_STATE]))
@@ -744,3 +766,6 @@ def get_activation_fn(activation: str) -> Callable:
     if activation == "glu":
         return F.glu
     raise RuntimeError(f"activation should be relu/gelu/glu, not {activation}.")
+
+
+
